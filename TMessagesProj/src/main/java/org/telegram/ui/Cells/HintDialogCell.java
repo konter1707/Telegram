@@ -16,11 +16,13 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.ConnectionsManager;
@@ -31,10 +33,12 @@ import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.CounterView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.webrtc.EglBase;
 
 public class HintDialogCell extends FrameLayout {
 
     private BackupImageView imageView;
+    private BackupImageView img;
     private TextView nameTextView;
     private AvatarDrawable avatarDrawable = new AvatarDrawable();
     private RectF rect = new RectF();
@@ -50,6 +54,27 @@ public class HintDialogCell extends FrameLayout {
     CounterView counterView;
     CheckBox2 checkBox;
     private final boolean drawCheckbox;
+
+    public HintDialogCell(Context context){
+        super(context);
+        this.drawCheckbox = false;
+        imageView = new BackupImageView(context);
+        imageView.setRoundRadius(AndroidUtilities.dp(27));
+        addView(imageView, LayoutHelper.createFrame(54, 54, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 7, 0, 0));
+
+        nameTextView = new TextView(context);
+        nameTextView.setTextColor(Theme.getColor(Theme.key_actionBarDefaultTitle));
+        nameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        nameTextView.setMaxLines(1);
+        nameTextView.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        nameTextView.setLines(1);
+        nameTextView.setEllipsize(TextUtils.TruncateAt.END);
+        addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 6, 64, 6, 0));
+
+//        ImageView img= new ImageView(context);
+//        img.setImageResource(R.drawable.msg_pin);
+//        addView(img, LayoutHelper.createFrame(20, 20, Gravity.TOP | Gravity.RIGHT,0 ,4,0,0));
+    }
 
     public HintDialogCell(Context context, boolean drawCheckbox) {
         super(context);
@@ -93,7 +118,9 @@ public class HintDialogCell extends FrameLayout {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(86), MeasureSpec.EXACTLY));
-        counterView.counterDrawable.horizontalPadding = AndroidUtilities.dp(13);
+        if (counterView!=null){
+            counterView.counterDrawable.horizontalPadding = AndroidUtilities.dp(13);
+        }
     }
 
     public void update(int mask) {
@@ -175,6 +202,7 @@ public class HintDialogCell extends FrameLayout {
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+
         boolean result = super.drawChild(canvas, child, drawingTime);
         if (child == imageView) {
             boolean showOnline = currentUser != null && !currentUser.bot && (currentUser.status != null && currentUser.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime() || MessagesController.getInstance(currentAccount).onlinePrivacy.containsKey(currentUser.id));
@@ -205,8 +233,8 @@ public class HintDialogCell extends FrameLayout {
                 canvas.drawCircle(left, top, AndroidUtilities.dp(5), Theme.dialogs_onlineCirclePaint);
                 canvas.restore();
             }
-            wasDraw = true;
         }
+            wasDraw = true;
         return result;
     }
 
