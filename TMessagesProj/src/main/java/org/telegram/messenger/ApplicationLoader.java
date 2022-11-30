@@ -32,10 +32,12 @@ import android.telephony.TelephonyManager;
 
 import androidx.annotation.NonNull;
 import androidx.multidex.MultiDex;
+import androidx.room.Room;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
+import org.telegram.SQLite.Fork.ForkDataBase;
 import org.telegram.messenger.voip.VideoCapturerDevice;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
@@ -47,6 +49,8 @@ import java.io.File;
 public class ApplicationLoader extends Application {
 
     private static ApplicationLoader applicationLoaderInstance;
+
+    private ForkDataBase dataBaseRoom;
 
     @SuppressLint("StaticFieldLeak")
     public static volatile Context applicationContext;
@@ -246,7 +250,6 @@ public class ApplicationLoader extends Application {
         } catch (Throwable ignore) {
 
         }
-
         super.onCreate();
 
         if (BuildVars.LOGS_ENABLED) {
@@ -256,6 +259,8 @@ public class ApplicationLoader extends Application {
         if (applicationContext == null) {
             applicationContext = getApplicationContext();
         }
+
+        dataBaseRoom = Room.databaseBuilder(applicationContext, ForkDataBase.class, "history").build();
 
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
         ConnectionsManager.native_setJava(false);
@@ -314,6 +319,14 @@ public class ApplicationLoader extends Application {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public ForkDataBase getDataBaseRoom(){
+        return dataBaseRoom;
+    }
+
+    public static ApplicationLoader getInstance(){
+        return applicationLoaderInstance;
     }
 
     private void initPushServices() {

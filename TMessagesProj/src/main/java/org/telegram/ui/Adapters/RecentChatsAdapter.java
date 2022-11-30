@@ -12,7 +12,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.exoplayer2.util.Log;
 
+import org.telegram.SQLite.Fork.HistoryDialog;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
@@ -28,16 +30,14 @@ import java.util.Collections;
 import java.util.List;
 
 public class RecentChatsAdapter extends RecyclerListView.SelectionAdapter {
-    List<String> dialog;
     private final Context mContext;
     private final int currentAccount;
-    private boolean drawChecked;
+    private List<HistoryDialog> historyDialogs;
 
-    public RecentChatsAdapter(Context context, int account, boolean drawChecked) {
-        this.drawChecked = drawChecked;
+    public RecentChatsAdapter(Context context, int account, List<HistoryDialog> historyDialogs) {
         mContext = context;
         currentAccount = account;
-        dialog = getDialogId();
+        this.historyDialogs = historyDialogs;
     }
 
     @Override
@@ -51,7 +51,7 @@ public class RecentChatsAdapter extends RecyclerListView.SelectionAdapter {
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         HintDialogCell cell = (HintDialogCell) holder.itemView;
 
-        Long dialogId = Long.parseLong(dialog.get(position));
+        Long dialogId = historyDialogs.get(position).dialogId;
         String name = "";
         long did = 0;
         TLRPC.User user = MessagesStorage.getInstance(currentAccount).getUser(dialogId);
@@ -72,7 +72,7 @@ public class RecentChatsAdapter extends RecyclerListView.SelectionAdapter {
             }
         }
 
-        cell.setTag(dialog.get(position));
+        cell.setTag(dialogId);
 
         long finalDid = did;
         String finalName = name;
@@ -84,29 +84,11 @@ public class RecentChatsAdapter extends RecyclerListView.SelectionAdapter {
 
     @Override
     public int getItemCount() {
-        return dialog.size();
+        return historyDialogs.size();
     }
 
     @Override
     public boolean isEnabled(RecyclerView.ViewHolder holder) {
         return true;
-    }
-
-    public List<String> getDialogId(){
-        SharedPreferences prefs = mContext.getSharedPreferences("PREFS", Context.MODE_PRIVATE);
-        String dialogId = prefs.getString("DIALOG_ID", "Пусто");
-        String[] dialogIds = dialogId.split(";");
-        List<String> dialogList = new ArrayList<>();
-
-        if (dialogId.equals("Пусто")){
-           return dialogList;
-        }else if (dialogIds.length>1){
-            dialogList = Arrays.asList(dialogIds);
-            Collections.reverse(dialogList);
-            return dialogList;
-        }else{
-            dialogList.add(dialogId);
-            return dialogList;
-        }
     }
 }

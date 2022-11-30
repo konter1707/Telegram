@@ -85,6 +85,7 @@ import androidx.viewpager.widget.ViewPager;
 
 import com.google.android.exoplayer2.util.Log;
 
+import org.telegram.SQLite.Fork.HistoryDialog;
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
@@ -264,6 +265,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private RecyclerListView horizontalListView;
     private RecentChatsAdapter recentChatsAdapter;
+    private List<HistoryDialog> historyDialogs;
 
     private boolean askingForPermissions;
     private RLottieDrawable passcodeDrawable;
@@ -1955,6 +1957,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             closeFragment = arguments.getBoolean("closeFragment", true);
         }
 
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("PREFS", Context.MODE_PRIVATE);
+        boolean isShowList = prefs.getBoolean("SHOW_HISTORY", false);
+        if (isShowList){
+            getMessagesStorage().getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                historyDialogs = ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().getAll();
+                Collections.reverse(historyDialogs);
+            });
+        }else{
+            historyDialogs = new ArrayList<>();
+        }
+
         if (initialDialogsType == 0) {
             askAboutContacts = MessagesController.getGlobalNotificationsSettings().getBoolean("askAboutContacts", true);
             SharedConfig.loadProxyList();
@@ -2406,18 +2419,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         });
 
         if (initialDialogsType == 0 && folderId == 0 && !onlySelect && TextUtils.isEmpty(searchString)) {
-
             horizontalListView = new RecyclerListView(context);
             horizontalListView.setSelectorDrawableColor(Theme.getColor(Theme.key_listSelector));
             horizontalListView.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
             LinearLayoutManager layoutManager = new LinearLayoutManager(context);
             layoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
             horizontalListView.setLayoutManager(layoutManager);
-            recentChatsAdapter = new RecentChatsAdapter(context, currentAccount,false);
+
+            recentChatsAdapter = new RecentChatsAdapter(context, currentAccount,historyDialogs);
             horizontalListView.setAdapter(recentChatsAdapter);
             horizontalListView.setOnItemClickListener((view1, position) -> {
-                String id = recentChatsAdapter.getDialogId().get(position);
-                Long dialogId = Long.parseLong(id);
+                Long dialogId = historyDialogs.get(position).dialogId;
                 Bundle args = new Bundle();
                 if (ChatObject.isChannel(dialogId, currentAccount)){
                     args.putLong("chat_id", dialogId);
@@ -2427,9 +2439,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new ChatActivity(args));
             });
             horizontalListView.setOnItemLongClickListener((view12, position) -> {
-                String id = recentChatsAdapter.getDialogId().get(position);
-                Long dialogId = Long.parseLong(id);
-                showChatPreview(dialogId);
+                Long dialogId = historyDialogs.get(position).dialogId;
+                showChatPreview(dialogId, position);
                 return true;
             });
 
@@ -4807,9 +4818,26 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (filterTabsView != null && filterTabsView.getVisibility() == View.VISIBLE) {
             parentLayout.getDrawerLayoutContainer().setAllowOpenDrawerBySwipe(viewPages[0].selectedType == filterTabsView.getFirstTabId() || searchIsShowed || SharedConfig.getChatSwipeAction(currentAccount) != SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS);
         }
-        if (horizontalListView!=null){
-            horizontalListView.setAdapter(new RecentChatsAdapter(getContext(), currentAccount, false));
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("PREFS", Context.MODE_PRIVATE);
+        boolean isShowList = prefs.getBoolean("SHOW_HISTORY", false);
+        if (isShowList){
+            getMessagesStorage().getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                historyDialogs = ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().getAll();
+                Collections.reverse(historyDialogs);
+            });
+            AndroidUtilities.runOnUIThread(()->{
+                if (horizontalListView!=null){
+                        recentChatsAdapter = new RecentChatsAdapter(getContext(), currentAccount, historyDialogs);
+                        horizontalListView.setAdapter(recentChatsAdapter);
+                }
+            });
+        }else{
+            if (horizontalListView!=null){
+                historyDialogs.removeAll(historyDialogs);
+                recentChatsAdapter.notifyDataSetChanged();
+            }
         }
+
         if (viewPages != null) {
             for (int a = 0; a < viewPages.length; a++) {
                 viewPages[a].dialogsAdapter.notifyDataSetChanged();
@@ -5742,25 +5770,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 chatActivity.setPreloadedSticker(sticker, true);
                             }
                         }
-                        SharedPreferences prefs = getContext().getSharedPreferences("PREFS", Context.MODE_PRIVATE);
-                        String dialogIds = prefs.getString("DIALOG_ID", "Пусто");
-
-                        StringBuilder stringBuilder = new StringBuilder(dialogIds);
-                        List<String> historyDialog = Arrays.asList(dialogIds.split(";"));
-                        Collections.reverse(historyDialog);
                         if (!isArchive()){
                             long did  = dialogId<0 ? -dialogId:dialogId;
-                            if (dialogIds.equals("Пусто")){
-                                prefs.edit().putString("DIALOG_ID", did+"").apply();
-                            }else{
-                                int indexHistory = historyDialog.indexOf(did+"");
-                                if (indexHistory ==-1){
-                                    stringBuilder.append(";").append(did);
-                                    prefs.edit().putString("DIALOG_ID", stringBuilder.toString()).apply();
-                                }
-                            }
+                            MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                                HistoryDialog historydialog = new HistoryDialog();
+                                historydialog.dialogId = did;
+                                historydialog.isPinned = false;
+                                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().deleteById(did);
+                                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().insert(historydialog);
+                            });
                         }
-                        presentFragment(chatActivity);
+                        AndroidUtilities.runOnUIThread(()->{
+                            presentFragment(chatActivity);
+                        },100);
                     }
                 }
             }
@@ -5912,7 +5934,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         });
         showDialog(builder.create());
     }
-    public boolean showChatPreview(Long openedDialogId) {
+    public boolean showChatPreview(Long openedDialogId, int position) {
         Bundle args = new Bundle();
 
         if (ChatObject.isChannel(openedDialogId, currentAccount)){
@@ -5951,8 +5973,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         disabledItem.setTextAndIcon(LocaleController.getString("Disable", R.string.Disable), R.drawable.msg_disable);
         disabledItem.setMinimumWidth(160);
         disabledItem.setOnClickListener(e -> {
-            this.horizontalListView.setVisibility(View.GONE);
-            this.horizontalListView = null;
+            getContext().getSharedPreferences("PREFS",Context.MODE_PRIVATE).edit().putBoolean("SHOW_HISTORY", false).apply();
             finishPreviewFragment();
         });
 
@@ -5964,7 +5985,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         deleteItem.setTextAndIcon(LocaleController.getString("Delete", R.string.Delete), R.drawable.msg_delete);
         deleteItem.setMinimumWidth(160);
         deleteItem.setOnClickListener(e -> {
-
+            MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().delete(historyDialogs.get(position));
+            });
+            AndroidUtilities.runOnUIThread(()->{
+                historyDialogs.remove(position);
+                finishPreviewFragment();
+            },100);
         });
         previewMenu[0].addView(deleteItem);
 
@@ -5974,8 +6001,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         clearHistoryItem.setTextAndIcon(LocaleController.getString("ClearHistory", R.string.ClearHistory), R.drawable.msg_clear);
         clearHistoryItem.setMinimumWidth(160);
         clearHistoryItem.setOnClickListener(e -> {
-            getContext().getSharedPreferences("PREFS",Context.MODE_PRIVATE).edit().putString("DIALOG_ID", "Пусто").apply();
-            finishPreviewFragment();
+            MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().deleteAll(historyDialogs);
+                historyDialogs = new ArrayList<>();
+            });
+            AndroidUtilities.runOnUIThread(()->{
+                finishPreviewFragment();
+            },100);
         });
         previewMenu[0].addView(clearHistoryItem);
 

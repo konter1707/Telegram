@@ -41,6 +41,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -128,6 +129,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     private AlertDialog sharingProgressDialog;
     private ActionBarMenuItem menuItem;
 
+    private boolean isShowHistory;
+    private SharedPreferences prefs;
+
     boolean hasThemeAccents;
 
     private int backgroundRow;
@@ -148,6 +152,8 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
     private int contactsReimportRow;
     private int contactsSortRow;
+
+    private int historyListRow;
 
     private int nightThemeRow;
     private int nightDisabledRow;
@@ -492,6 +498,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         nightSystemDefaultRow = -1;
         nightTypeInfoRow = -1;
         scheduleHeaderRow = -1;
+        historyListRow = -1;
         nightThemeRow = -1;
         newThemeInfoRow = -1;
         scheduleFromRow = -1;
@@ -622,6 +629,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
             settingsRow = rowCount++;
             nightThemeRow = rowCount++;
+            historyListRow = rowCount++;
             customTabsRow = rowCount++;
             directShareRow = rowCount++;
             enableAnimationsRow = rowCount++;
@@ -754,6 +762,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public boolean onFragmentCreate() {
+        prefs = ApplicationLoader.applicationContext.getSharedPreferences("PREFS",Context.MODE_PRIVATE);
+        isShowHistory = prefs.getBoolean("SHOW_HISTORY", false);
+
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.locationPermissionGranted);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didSetNewWallpapper);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.themeListUpdated);
@@ -1152,6 +1163,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 if (view instanceof TextCheckCell) {
                     ((TextCheckCell) view).setChecked(SharedConfig.chatBlurEnabled());
                 }
+            } else if (position == historyListRow){
+                prefs.edit().putBoolean("SHOW_HISTORY", !isShowHistory).apply();
+                isShowHistory = !isShowHistory;
+                updateRows(true);
             } else if (position == nightThemeRow) {
                 if (LocaleController.isRTL && x <= AndroidUtilities.dp(76) || !LocaleController.isRTL && x >= view.getMeasuredWidth() - AndroidUtilities.dp(76)) {
                     NotificationsCheckCell checkCell = (NotificationsCheckCell) view;
@@ -2107,7 +2122,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             switch (holder.getItemViewType()) {
                 case TYPE_TEXT_SETTING: {
                     TextSettingsCell cell = (TextSettingsCell) holder.itemView;
-                    if (position == nightThemeRow) {
+                     if (position == nightThemeRow) {
                         if (Theme.selectedAutoNightType == Theme.AUTO_NIGHT_TYPE_NONE || Theme.getCurrentNightTheme() == null) {
                             cell.setTextAndValue(LocaleController.getString("AutoNightTheme", R.string.AutoNightTheme), LocaleController.getString("AutoNightThemeOff", R.string.AutoNightThemeOff), false);
                         } else {
@@ -2258,6 +2273,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             value = type + " " + value;
                         }
                         checkCell.setTextAndValueAndCheck(LocaleController.getString("AutoNightTheme", R.string.AutoNightTheme), value, enabled, true);
+                    }else if (position == historyListRow){
+                        String value = isShowHistory ? "On" : "Off";
+                        checkCell.setTextAndValueAndCheck("Show history dialog", value, isShowHistory, true);
                     }
                     break;
                 }
@@ -2353,6 +2371,8 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             } else if (position == chatListRow) {
                 return TYPE_CHAT_LIST;
             } else if (position == nightThemeRow) {
+                return TYPE_NIGHT_THEME;
+            } else if (position == historyListRow) {
                 return TYPE_NIGHT_THEME;
             } else if (position == themeListRow) {
                 return TYPE_THEME_LIST;
