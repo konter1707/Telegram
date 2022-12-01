@@ -10,17 +10,26 @@ import java.util.List;
 
 @Dao
 public interface HistoryDialogDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert()
     void insert(HistoryDialog historyDialog);
 
     @Query("SELECT * FROM historydialog")
     List<HistoryDialog> getAll();
 
+    @Query("SELECT EXISTS(SELECT * FROM historydialog WHERE dialogId = :dialogId)")
+    boolean isDialogId(long dialogId);
+
+    @Query("UPDATE historydialog SET date = :date WHERE dialogId = :dialogId")
+    void updateDate(long date, long dialogId);
+
+    @Query("UPDATE historydialog SET isPinned = :isPinned WHERE dialogId = :dialogId")
+    void update(boolean isPinned, long dialogId);
+
     @Delete
     void deleteAll(List<HistoryDialog> historyDialogs);
 
-    @Query("DELETE FROM historydialog WHERE dialogId = :dialogId")
-    void deleteById(long dialogId);
+    @Query("DELETE FROM historydialog WHERE dialogId = :dialogId AND isPinned=:isPinned")
+    void deleteById(long dialogId, boolean isPinned);
 
     @Delete
     void delete(HistoryDialog historyDialog);

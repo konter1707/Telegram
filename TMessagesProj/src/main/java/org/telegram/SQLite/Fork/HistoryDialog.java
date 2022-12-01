@@ -9,4 +9,5 @@ public class HistoryDialog {
     public long id;
     public long dialogId;
     public boolean isPinned;
+    public long date;
 }

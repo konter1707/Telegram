@@ -1164,6 +1164,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     ((TextCheckCell) view).setChecked(SharedConfig.chatBlurEnabled());
                 }
             } else if (position == historyListRow){
+                getNotificationCenter().postNotificationName(NotificationCenter.updateShowHistory, !isShowHistory);
                 prefs.edit().putBoolean("SHOW_HISTORY", !isShowHistory).apply();
                 isShowHistory = !isShowHistory;
                 updateRows(true);

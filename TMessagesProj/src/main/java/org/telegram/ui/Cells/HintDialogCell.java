@@ -33,12 +33,11 @@ import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.CounterView;
 import org.telegram.ui.Components.LayoutHelper;
-import org.webrtc.EglBase;
 
 public class HintDialogCell extends FrameLayout {
 
     private BackupImageView imageView;
-    private BackupImageView img;
+    private ImageView img;
     private TextView nameTextView;
     private AvatarDrawable avatarDrawable = new AvatarDrawable();
     private RectF rect = new RectF();
@@ -71,9 +70,10 @@ public class HintDialogCell extends FrameLayout {
         nameTextView.setEllipsize(TextUtils.TruncateAt.END);
         addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 6, 64, 6, 0));
 
-//        ImageView img= new ImageView(context);
-//        img.setImageResource(R.drawable.msg_pin);
-//        addView(img, LayoutHelper.createFrame(20, 20, Gravity.TOP | Gravity.RIGHT,0 ,4,0,0));
+        img= new ImageView(context);
+        img.setImageResource(R.drawable.msg_pin);
+        img.setVisibility(GONE);
+        addView(img, LayoutHelper.createFrame(20, 20, Gravity.TOP | Gravity.RIGHT,0 ,4,0,0));
     }
 
     public HintDialogCell(Context context, boolean drawCheckbox) {
@@ -195,6 +195,43 @@ public class HintDialogCell extends FrameLayout {
         }
         if (counter) {
             update(0);
+        }
+    }
+
+    public void setHistoryDialog(long uid, boolean isShowPinned, CharSequence name) {
+        if (dialogId != uid) {
+            wasDraw = false;
+            invalidate();
+        }
+        dialogId = uid;
+        if (DialogObject.isUserDialog(uid)) {
+            currentUser = MessagesController.getInstance(currentAccount).getUser(uid);
+            if (name != null) {
+                nameTextView.setText(name);
+            } else if (currentUser != null) {
+                nameTextView.setText(UserObject.getFirstName(currentUser));
+            } else {
+                nameTextView.setText("");
+            }
+            avatarDrawable.setInfo(currentUser);
+            imageView.setForUserOrChat(currentUser, avatarDrawable);
+        } else {
+            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-uid);
+            if (name != null) {
+                nameTextView.setText(name);
+            } else if (chat != null) {
+                nameTextView.setText(chat.title);
+            } else {
+                nameTextView.setText("");
+            }
+            avatarDrawable.setInfo(chat);
+            currentUser = null;
+            imageView.setForUserOrChat(chat, avatarDrawable);
+        }
+        if (isShowPinned) {
+            img.setVisibility(View.VISIBLE);
+        }else{
+            img.setVisibility(View.GONE);
         }
     }
 

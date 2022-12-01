@@ -202,6 +202,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class DialogsActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate, FloatingDebugProvider {
@@ -266,6 +267,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private RecyclerListView horizontalListView;
     private RecentChatsAdapter recentChatsAdapter;
     private List<HistoryDialog> historyDialogs;
+    private boolean isShowHistory;
 
     private boolean askingForPermissions;
     private RLottieDrawable passcodeDrawable;
@@ -1957,17 +1959,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             closeFragment = arguments.getBoolean("closeFragment", true);
         }
 
-        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("PREFS", Context.MODE_PRIVATE);
-        boolean isShowList = prefs.getBoolean("SHOW_HISTORY", false);
-        if (isShowList){
-            getMessagesStorage().getInstance(currentAccount).getStorageQueue().postRunnable(()->{
-                historyDialogs = ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().getAll();
-                Collections.reverse(historyDialogs);
-            });
-        }else{
-            historyDialogs = new ArrayList<>();
-        }
-
         if (initialDialogsType == 0) {
             askAboutContacts = MessagesController.getGlobalNotificationsSettings().getBoolean("askAboutContacts", true);
             SharedConfig.loadProxyList();
@@ -2013,6 +2004,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didSetPasscode);
             NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.appUpdateAvailable);
         }
+        getNotificationCenter().addObserver(this, NotificationCenter.updateShowHistory);
         getNotificationCenter().addObserver(this, NotificationCenter.messagesDeleted);
 
         getNotificationCenter().addObserver(this, NotificationCenter.onDatabaseMigration);
@@ -2134,6 +2126,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.didSetPasscode);
             NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.appUpdateAvailable);
         }
+        getNotificationCenter().removeObserver(this,NotificationCenter.updateShowHistory);
         getNotificationCenter().removeObserver(this, NotificationCenter.messagesDeleted);
 
         getNotificationCenter().removeObserver(this, NotificationCenter.onDatabaseMigration);
@@ -2419,31 +2412,32 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         });
 
         if (initialDialogsType == 0 && folderId == 0 && !onlySelect && TextUtils.isEmpty(searchString)) {
-            horizontalListView = new RecyclerListView(context);
-            horizontalListView.setSelectorDrawableColor(Theme.getColor(Theme.key_listSelector));
-            horizontalListView.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
-            LinearLayoutManager layoutManager = new LinearLayoutManager(context);
-            layoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
-            horizontalListView.setLayoutManager(layoutManager);
+            if (historyDialogs!=null){
+                horizontalListView = new RecyclerListView(context);
+                horizontalListView.setSelectorDrawableColor(Theme.getColor(Theme.key_listSelector));
+                horizontalListView.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
+                LinearLayoutManager layoutManager = new LinearLayoutManager(context);
+                layoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
+                horizontalListView.setLayoutManager(layoutManager);
 
-            recentChatsAdapter = new RecentChatsAdapter(context, currentAccount,historyDialogs);
-            horizontalListView.setAdapter(recentChatsAdapter);
-            horizontalListView.setOnItemClickListener((view1, position) -> {
-                Long dialogId = historyDialogs.get(position).dialogId;
-                Bundle args = new Bundle();
-                if (ChatObject.isChannel(dialogId, currentAccount)){
-                    args.putLong("chat_id", dialogId);
-                }else{
-                    args.putLong("user_id", dialogId);
-                }
-                presentFragment(new ChatActivity(args));
-            });
-            horizontalListView.setOnItemLongClickListener((view12, position) -> {
-                Long dialogId = historyDialogs.get(position).dialogId;
-                showChatPreview(dialogId, position);
-                return true;
-            });
-
+                recentChatsAdapter = new RecentChatsAdapter(context, currentAccount,historyDialogs);
+                horizontalListView.setAdapter(recentChatsAdapter);
+                horizontalListView.setOnItemClickListener((view1, position) -> {
+                    Long dialogId = historyDialogs.get(position).dialogId;
+                    Bundle args = new Bundle();
+                    if (ChatObject.isChannel(dialogId, currentAccount)){
+                        args.putLong("chat_id", dialogId);
+                    }else{
+                        args.putLong("user_id", dialogId);
+                    }
+                    presentFragment(new ChatActivity(args));
+                });
+                horizontalListView.setOnItemLongClickListener((view12, position) -> {
+                    Long dialogId = historyDialogs.get(position).dialogId;
+                    showChatPreview(dialogId, position);
+                    return true;
+                });
+            }
             scrimPaint = new Paint() {
                 @Override
                 public void setAlpha(int a) {
@@ -4818,25 +4812,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (filterTabsView != null && filterTabsView.getVisibility() == View.VISIBLE) {
             parentLayout.getDrawerLayoutContainer().setAllowOpenDrawerBySwipe(viewPages[0].selectedType == filterTabsView.getFirstTabId() || searchIsShowed || SharedConfig.getChatSwipeAction(currentAccount) != SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS);
         }
-        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("PREFS", Context.MODE_PRIVATE);
-        boolean isShowList = prefs.getBoolean("SHOW_HISTORY", false);
-        if (isShowList){
-            getMessagesStorage().getInstance(currentAccount).getStorageQueue().postRunnable(()->{
-                historyDialogs = ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().getAll();
-                Collections.reverse(historyDialogs);
-            });
-            AndroidUtilities.runOnUIThread(()->{
-                if (horizontalListView!=null){
-                        recentChatsAdapter = new RecentChatsAdapter(getContext(), currentAccount, historyDialogs);
-                        horizontalListView.setAdapter(recentChatsAdapter);
-                }
-            });
-        }else{
-            if (horizontalListView!=null){
-                historyDialogs.removeAll(historyDialogs);
-                recentChatsAdapter.notifyDataSetChanged();
-            }
-        }
+
+        isShowHistory = ApplicationLoader.applicationContext.getSharedPreferences("PREFS", Context.MODE_PRIVATE).getBoolean("SHOW_HISTORY",false);
+        showHistoryDialog(isShowHistory);
 
         if (viewPages != null) {
             for (int a = 0; a < viewPages.length; a++) {
@@ -5773,11 +5751,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         if (!isArchive()){
                             long did  = dialogId<0 ? -dialogId:dialogId;
                             MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(()->{
-                                HistoryDialog historydialog = new HistoryDialog();
-                                historydialog.dialogId = did;
-                                historydialog.isPinned = false;
-                                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().deleteById(did);
-                                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().insert(historydialog);
+                                boolean isDialogId = ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().isDialogId(did);
+                                if (!isDialogId){
+                                    HistoryDialog historydialog = new HistoryDialog();
+                                    historydialog.dialogId = did;
+                                    historydialog.isPinned = false;
+                                    historydialog.date = System.currentTimeMillis();
+                                    ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().insert(historydialog);
+                                }else{
+                                    long date = System.currentTimeMillis();
+                                    ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().updateDate(date, did);
+                                }
                             });
                         }
                         AndroidUtilities.runOnUIThread(()->{
@@ -5942,10 +5926,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }else{
             args.putLong("user_id", openedDialogId);
         }
-
-        final ArrayList<Long> dialogIdArray = new ArrayList<>();
-        dialogIdArray.add(openedDialogId);
-
         final ActionBarPopupWindow.ActionBarPopupWindowLayout[] previewMenu = new ActionBarPopupWindow.ActionBarPopupWindowLayout[1];
 
         int flags = ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_SHOWN_FROM_BOTTOM;
@@ -5953,21 +5933,24 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final ChatActivity[] chatActivity = new ChatActivity[1];
         previewMenu[0] = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert, getResourceProvider(), flags);
 
+        HistoryDialog historyDialog = historyDialogs.get(position);
         ActionBarMenuSubItem unpinItem = new ActionBarMenuSubItem(getParentActivity(), false, false);
-        unpinItem.setTextAndIcon(LocaleController.getString("PinMessage", R.string.PinMessage), R.drawable.msg_pin);
+        if (historyDialog.isPinned) {
+            unpinItem.setTextAndIcon(LocaleController.getString("UnpinMessage", R.string.UnpinMessage), R.drawable.msg_unpin);
+        }else{
+            unpinItem.setTextAndIcon(LocaleController.getString("PinMessage", R.string.PinMessage), R.drawable.msg_pin);
+        }
+
         unpinItem.setMinimumWidth(160);
         unpinItem.setOnClickListener(e->{
-
+            MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().update(!historyDialog.isPinned, historyDialog.dialogId);
+            });
+            AndroidUtilities.runOnUIThread(()->{
+                finishPreviewFragment();
+            },100);
         });
         previewMenu[0].addView(unpinItem);
-
-        ActionBarMenuSubItem settings = new ActionBarMenuSubItem(getParentActivity(), false, false);
-        settings.setTextAndIcon(LocaleController.getString("Settings", R.string.Settings), R.drawable.msg_settings);
-        settings.setMinimumWidth(160);
-        settings.setOnClickListener(e -> {
-
-        });
-        previewMenu[0].addView(settings);
 
         ActionBarMenuSubItem disabledItem = new ActionBarMenuSubItem(getParentActivity(), false, false);
         disabledItem.setTextAndIcon(LocaleController.getString("Disable", R.string.Disable), R.drawable.msg_disable);
@@ -7808,10 +7791,49 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         updateFloatingButtonOffset();
     }
 
+    public void showHistoryDialog(boolean isShowList){
+        if (isShowList){
+            MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(()->{
+                historyDialogs = ApplicationLoader.getInstance().getDataBaseRoom().historyDialogDao().getAll();
+                Comparator<HistoryDialog> dialogDateComparator = (dialog1, dialog2) -> {
+                    boolean pinnedNum1 = dialog1.isPinned;
+                    long date1 = dialog1.date;
+                    boolean pinnedNum2 = dialog2.isPinned;
+                    long date2 = dialog2.date;
+
+                    if (pinnedNum1 && !pinnedNum2) {
+                        return -1;
+                    }else if (pinnedNum2 && !pinnedNum1){
+                        return 1;
+                    }else if (date1>date2){
+                            return -1;
+                    }else return 0;
+                };
+                Collections.sort(historyDialogs,dialogDateComparator);
+            });
+            AndroidUtilities.runOnUIThread(()->{
+                if (horizontalListView!=null) {
+                    recentChatsAdapter = new RecentChatsAdapter(getContext(), currentAccount, historyDialogs);
+                    horizontalListView.setAdapter(recentChatsAdapter);
+                }
+            },100);
+        }else{
+            if (horizontalListView!=null){
+                historyDialogs.removeAll(historyDialogs);
+                recentChatsAdapter.notifyDataSetChanged();
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.dialogsNeedReload) {
+        if (id == NotificationCenter.updateShowHistory){
+            if (horizontalListView==null){
+                return;
+            }
+            showHistoryDialog((Boolean) args[0]);
+        }else if (id == NotificationCenter.dialogsNeedReload) {
             if (viewPages == null || dialogsListFrozen) {
                 return;
             }

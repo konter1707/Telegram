@@ -52,6 +52,7 @@ public class RecentChatsAdapter extends RecyclerListView.SelectionAdapter {
         HintDialogCell cell = (HintDialogCell) holder.itemView;
 
         Long dialogId = historyDialogs.get(position).dialogId;
+        boolean isShowPinned = historyDialogs.get(position).isPinned;
         String name = "";
         long did = 0;
         TLRPC.User user = MessagesStorage.getInstance(currentAccount).getUser(dialogId);
@@ -76,9 +77,8 @@ public class RecentChatsAdapter extends RecyclerListView.SelectionAdapter {
 
         long finalDid = did;
         String finalName = name;
-        AndroidUtilities.runOnUIThread(() -> {
-            cell.setDialog(finalDid, false, finalName);
-        });
+
+        cell.setHistoryDialog(finalDid, isShowPinned, finalName);
 
     }
 
